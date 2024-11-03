@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Wikipedia Sentiment Analysis",
+  "version": "1.0",
+  "permissions": ["activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.wikipedia.org/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "host_permissions": ["https://wiki.skyler.cc/*"]
+}
