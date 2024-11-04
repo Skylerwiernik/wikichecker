@@ -21,41 +21,14 @@ toggleSwitch.style.marginLeft = "10px";
 toggleSwitch.style.color = "#61dafb";
 
 let mode = "sentiment";
+let sentimentState = null;
+let biasState = null;
 
 document.body.classList.add("hide-bias");
 
-toggleSwitch.addEventListener("click", () => {
-    mode = mode === "sentiment" ? "bias" : "sentiment";
-    toggleSwitch.innerHTML = mode === "sentiment" ? "<b>Sentiment</b> | Bias" : "Sentiment | <b>Bias</b>";
-
-    // Toggle body class based on mode
-    if (mode === "sentiment") {
-        document.body.classList.add("hide-bias");
-        document.body.classList.remove("hide-sentiment");
-        setSentiment();
-    } else {
-        document.body.classList.add("hide-sentiment");
-        document.body.classList.remove("hide-bias");
-        setBias();
-    }
-});
-
-let originalPageState = null;
-
-var setSentiment = () => {}
-var setBias = () => {}
-
-function highlight(searchTexts, tooltips, types) {
+function calculateHighlightState(searchTexts, tooltips, types) {
     const paragraphs = document.querySelectorAll("p");
-
-    if (originalPageState === null) {
-        originalPageState = Array.from(paragraphs).map(paragraph => paragraph.innerHTML);
-    } else {
-        // Restore the page to its original state before modifying
-        paragraphs.forEach((paragraph, index) => {
-            paragraph.innerHTML = originalPageState[index];
-        });
-    }
+    const result = [];
 
     paragraphs.forEach(paragraph => {
         const clone = paragraph.cloneNode(true);
@@ -70,7 +43,6 @@ function highlight(searchTexts, tooltips, types) {
             let textBefore = '';
             let prevNode = sup.previousSibling;
 
-            // Capture up to 10 characters before the first <sup> in a sequence
             while (prevNode && textBefore.length < 10) {
                 if (prevNode.nodeType === Node.TEXT_NODE) {
                     textBefore = prevNode.textContent.slice(-10) + textBefore;
@@ -80,28 +52,23 @@ function highlight(searchTexts, tooltips, types) {
                 prevNode = prevNode.previousSibling;
             }
 
-            // If this is the start of a new sequence, initialize current values
             if (!previousSup || previousSup.nextSibling !== sup) {
                 if (currentSupHTML) {
-                    // Store the previous sequence in supMap
                     supMap.set(currentSupHTML, currentTextBefore);
                 }
                 currentTextBefore = textBefore.slice(-10);
                 currentSupHTML = '';
             }
 
-            // Append the current <sup> to the current sequence
             currentSupHTML += sup.outerHTML;
             previousSup = sup;
 
-            // If this is the last <sup> or the next one is not consecutive, add to map
             if (index === sups.length - 1 || sups[index + 1].previousSibling !== sup) {
                 supMap.set(currentSupHTML, currentTextBefore);
                 currentSupHTML = '';
             }
         });
 
-        // Remove <sup> tags from the clone paragraph
         sups.forEach(sup => sup.remove());
 
         const linkMap = new Map();
@@ -109,36 +76,30 @@ function highlight(searchTexts, tooltips, types) {
             linkMap.set(anchor.innerText, anchor.outerHTML);
         });
 
-        // Normalize whitespace in the clone's paragraph text
         const normalizedParagraphText = clone.textContent.replace(/\s+/g, ' ');
+        let modifiedHTML = normalizedParagraphText;
 
-        // Highlight search terms in the paragraph
         searchTexts.forEach((text, index) => {
             const tooltipText = tooltips[index];
             const normalizedSearchText = text.replace(/\s+/g, ' ');
 
-            // Check if normalized search text exists in the paragraph
             if (normalizedParagraphText.includes(normalizedSearchText)) {
-                const startIndex = normalizedParagraphText.indexOf(normalizedSearchText);
+                const startIndex = modifiedHTML.indexOf(normalizedSearchText);
                 const endIndex = startIndex + normalizedSearchText.length;
-                console.log(types)
-                paragraph.innerHTML =
-                    normalizedParagraphText.slice(0, startIndex) +
+
+                modifiedHTML =
+                    modifiedHTML.slice(0, startIndex) +
                     `<span class="${types[index]}-highlighted" title="${tooltipText}">${normalizedSearchText}</span>` +
-                    normalizedParagraphText.slice(endIndex);
+                    modifiedHTML.slice(endIndex);
             }
         });
 
-        // Restore anchor tags
         linkMap.forEach((outer, inner) => {
-            paragraph.innerHTML = paragraph.innerHTML.replace(inner, outer);
+            modifiedHTML = modifiedHTML.replace(inner, outer);
         });
 
-        // Reinsert <sup> tags with combined entries
-        let modifiedHTML = paragraph.innerHTML;
         supMap.forEach((textBefore, supHTML) => {
             const index = modifiedHTML.indexOf(textBefore);
-
             if (index !== -1) {
                 const beforeText = modifiedHTML.slice(0, index + textBefore.length);
                 const afterText = modifiedHTML.slice(index + textBefore.length);
@@ -146,11 +107,37 @@ function highlight(searchTexts, tooltips, types) {
             }
         });
 
-        paragraph.innerHTML = modifiedHTML;
+        result.push(modifiedHTML);
+    });
+
+    return result;
+}
+
+function applyState(state) {
+    const paragraphs = document.querySelectorAll("p");
+    paragraphs.forEach((paragraph, index) => {
+        paragraph.innerHTML = state[index];
     });
 }
 
+toggleSwitch.addEventListener("click", () => {
+    mode = mode === "sentiment" ? "bias" : "sentiment";
+    toggleSwitch.innerHTML = mode === "sentiment" ? "<b>Sentiment</b> | Bias" : "Sentiment | <b>Bias</b>";
 
+    if (mode === "sentiment") {
+        document.body.classList.add("hide-bias");
+        document.body.classList.remove("hide-sentiment");
+        applyState(sentimentState);
+    } else {
+        document.body.classList.add("hide-sentiment");
+        document.body.classList.remove("hide-bias");
+        applyState(biasState);
+    }
+});
+
+// Store original state before making any modifications
+const paragraphs = document.querySelectorAll("p");
+const originalState = Array.from(paragraphs).map(paragraph => paragraph.innerHTML);
 
 fetch("https://wiki.skyler.cc/sentiment", {
     method: "POST",
@@ -161,17 +148,16 @@ fetch("https://wiki.skyler.cc/sentiment", {
 })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings; // data.sentiment
+        let findings = data.findings;
         let searchTexts = findings.map(finding => finding.text);
-        let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
+        let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is biased in a ${finding.type} direction.`);
         let types = findings.map(finding => finding.type);
-        setSentiment = () => {
-            highlight(searchTexts, tooltips, types);
-        }
-        setSentiment();
+
+        sentimentState = calculateHighlightState(searchTexts, tooltips, types);
+        applyState(sentimentState); // Apply sentiment state immediately as default
+
         textBox.innerText = "Got sentiment. Loading bias...";
 
-        // Chain the second fetch call
         return fetch("https://wiki.skyler.cc/bias", {
             method: "POST",
             headers: {
@@ -182,13 +168,13 @@ fetch("https://wiki.skyler.cc/sentiment", {
     })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings; // data.bias
+        let findings = data.findings;
         let searchTexts = findings.map(finding => finding.text);
-        let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
+        let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type} leaning.`);
         let types = findings.map(finding => finding.type);
-        setBias = () => {
-            highlight(searchTexts, tooltips, types);
-        }
+
+        biasState = calculateHighlightState(searchTexts, tooltips, types);
+
         textBox.innerText = "";
         textBox.appendChild(toggleSwitch);
     })
