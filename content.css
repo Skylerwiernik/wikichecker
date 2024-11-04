@@ -1,4 +1,24 @@
-.highlighted {
-    background-color: rgba(255, 0, 0, 0.2);
-    position: relative;
+.left-highlighted {
+    background-color: rgba(0, 157, 255, 0.52);
+}
+
+.right-highlighted {
+    background-color: rgba(249, 71, 255, 0.52);
+}
+
+.positive-highlighted {
+    background-color: rgba(55, 255, 0, 0.52);
+}
+.negative-highlighted {
+    background-color: rgba(255, 0, 0, 0.52);
+}
+
+.hide-sentiment .positive-highlighted,
+.hide-sentiment .negative-highlighted {
+    background-color: transparent !important;
+}
+
+.hide-bias .left-highlighted,
+.hide-bias .right-highlighted {
+    background-color: transparent !important;
 }

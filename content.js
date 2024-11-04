@@ -1,4 +1,3 @@
-// Create loading box element
 const textBox = document.createElement("div");
 textBox.innerText = "Sentiment loading...";
 textBox.style.position = "fixed";
@@ -13,10 +12,34 @@ textBox.style.zIndex = "1000";
 textBox.style.display = "block";
 document.body.appendChild(textBox);
 
-// title tag innerHTML
+const toggleSwitch = document.createElement("span");
+toggleSwitch.innerHTML = "<b>Sentiment</b> | Bias";
+toggleSwitch.style.cursor = "pointer";
+toggleSwitch.style.marginLeft = "10px";
+toggleSwitch.style.color = "#61dafb";
+// toggleSwitch.style.fontWeight = "bold";
+
+let mode = "sentiment";
+
+document.body.classList.add("hide-bias");
+
+toggleSwitch.addEventListener("click", () => {
+    mode = mode === "sentiment" ? "bias" : "sentiment";
+    toggleSwitch.innerHTML = mode === "sentiment" ? "<b>Sentiment</b> | Bias" : "Sentiment | <b>Bias</b>";
+
+    // Toggle body class based on mode
+    if (mode === "sentiment") {
+        document.body.classList.add("hide-bias");
+        document.body.classList.remove("hide-sentiment");
+    } else {
+        document.body.classList.add("hide-sentiment");
+        document.body.classList.remove("hide-bias");
+    }
+});
+
 const title = document.getElementsByName("title")[0].innerText;
 
-function highlight(searchTexts, tooltips) {
+function highlight(searchTexts, tooltips, types) {
     const paragraphs = document.querySelectorAll("p");
 
     paragraphs.forEach(paragraph => {
@@ -83,10 +106,10 @@ function highlight(searchTexts, tooltips) {
             if (normalizedParagraphText.includes(normalizedSearchText)) {
                 const startIndex = normalizedParagraphText.indexOf(normalizedSearchText);
                 const endIndex = startIndex + normalizedSearchText.length;
-
+                console.log(types)
                 paragraph.innerHTML =
                     normalizedParagraphText.slice(0, startIndex) +
-                    `<span class="highlighted" title="${tooltipText}">${normalizedSearchText}</span>` +
+                    `<span class="${types[index]}-highlighted" title="${tooltipText}">${normalizedSearchText}</span>` +
                     normalizedParagraphText.slice(endIndex);
             }
         });
@@ -114,7 +137,6 @@ function highlight(searchTexts, tooltips) {
 
 
 
-
 fetch("https://wiki.skyler.cc/sentiment", {
     method: "POST",
     headers: {
@@ -127,12 +149,28 @@ fetch("https://wiki.skyler.cc/sentiment", {
         let findings = data.findings;
         let searchTexts = findings.map(finding => finding.text);
         let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
+        let types = findings.map(finding => finding.type);
+        highlight(searchTexts, tooltips, types);
+        textBox.innerText = "Got sentiment. Loading bias...";
 
-        highlight(searchTexts, tooltips);
+        // Chain the second fetch call
+        return fetch("https://wiki.skyler.cc/bias", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ title: title })
+        });
     })
-    .catch(error => console.error("Error:", error))
-    .finally(() => {
-        textBox.style.display = "none";
-    });
+    .then(response => response.json())
+    .then((data) => {
+        let findings = data.findings;
+        let searchTexts = findings.map(finding => finding.text);
+        let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
+        let types = findings.map(finding => finding.type);
 
-textBox.style.display = "block";
+        highlight(searchTexts, tooltips, types);
+        textBox.innerText = "";
+        textBox.appendChild(toggleSwitch);
+    })
+    .catch(error => console.error("Error:", error));
