@@ -22,7 +22,10 @@ toggleSwitch.style.color = "#61dafb";
 
 let mode = "sentiment";
 let sentimentState = null;
+let sentimentText = "";
 let biasState = null;
+let biasText = "";
+
 
 document.body.classList.add("hide-bias");
 
@@ -127,19 +130,21 @@ toggleSwitch.addEventListener("click", () => {
     if (mode === "sentiment") {
         document.body.classList.add("hide-bias");
         document.body.classList.remove("hide-sentiment");
+        textBox.innerText = sentimentText;
+        textBox.style.color = sentimentText.includes("positive") ? "rgba(55,255,0,0.53)": "rgba(255,0,0,0.53)";
         applyState(sentimentState);
     } else {
         document.body.classList.add("hide-sentiment");
         document.body.classList.remove("hide-bias");
+        textBox.innerText = biasText;
+        textBox.style.color = biasText.includes("left") ? "#009dff": "#f947ff" ;
         applyState(biasState);
     }
+    textBox.appendChild(toggleSwitch);
 });
 
-// Store original state before making any modifications
-const paragraphs = document.querySelectorAll("p");
-const originalState = Array.from(paragraphs).map(paragraph => paragraph.innerHTML);
 
-fetch("https://wiki.skyler.cc/sentiment", {
+fetch("https://wikibias.skyler.cc/sentiment", {
     method: "POST",
     headers: {
         "Content-Type": "application/json"
@@ -148,17 +153,19 @@ fetch("https://wiki.skyler.cc/sentiment", {
 })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings;
+        let findings = data.sentiment;
         let searchTexts = findings.map(finding => finding.text);
         let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is biased in a ${finding.type} direction.`);
         let types = findings.map(finding => finding.type);
+        let page = data.page;
 
+        sentimentText = `${Math.floor(page.confidence * 100)}% ${page.type}`;
         sentimentState = calculateHighlightState(searchTexts, tooltips, types);
         applyState(sentimentState); // Apply sentiment state immediately as default
 
         textBox.innerText = "Got sentiment. Loading bias...";
 
-        return fetch("https://wiki.skyler.cc/bias", {
+        return fetch("https://wikibias.skyler.cc/bias", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -168,14 +175,17 @@ fetch("https://wiki.skyler.cc/sentiment", {
     })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings;
+        let findings = data.bias;
         let searchTexts = findings.map(finding => finding.text);
         let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type} leaning.`);
         let types = findings.map(finding => finding.type);
+        let page = data.page;
 
         biasState = calculateHighlightState(searchTexts, tooltips, types);
+        biasText = `${Math.floor(page.confidence * 100)}% ${page.type}`;
 
-        textBox.innerText = "";
+        textBox.style.color = sentimentText.includes("positive") ? "#37FF0084": "#FF000084";
+        textBox.innerText = sentimentText;
         textBox.appendChild(toggleSwitch);
     })
-    .catch(error => console.error("Error:", error));
+    // .catch(error => console.error("Error:", error));
