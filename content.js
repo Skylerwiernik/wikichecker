@@ -1,3 +1,5 @@
+const title = document.getElementsByName("title")[0].innerText;
+
 const textBox = document.createElement("div");
 textBox.innerText = "Sentiment loading...";
 textBox.style.position = "fixed";
@@ -17,7 +19,6 @@ toggleSwitch.innerHTML = "<b>Sentiment</b> | Bias";
 toggleSwitch.style.cursor = "pointer";
 toggleSwitch.style.marginLeft = "10px";
 toggleSwitch.style.color = "#61dafb";
-// toggleSwitch.style.fontWeight = "bold";
 
 let mode = "sentiment";
 
@@ -31,16 +32,30 @@ toggleSwitch.addEventListener("click", () => {
     if (mode === "sentiment") {
         document.body.classList.add("hide-bias");
         document.body.classList.remove("hide-sentiment");
+        setSentiment();
     } else {
         document.body.classList.add("hide-sentiment");
         document.body.classList.remove("hide-bias");
+        setBias();
     }
 });
 
-const title = document.getElementsByName("title")[0].innerText;
+let originalPageState = null;
+
+var setSentiment = () => {}
+var setBias = () => {}
 
 function highlight(searchTexts, tooltips, types) {
     const paragraphs = document.querySelectorAll("p");
+
+    if (originalPageState === null) {
+        originalPageState = Array.from(paragraphs).map(paragraph => paragraph.innerHTML);
+    } else {
+        // Restore the page to its original state before modifying
+        paragraphs.forEach((paragraph, index) => {
+            paragraph.innerHTML = originalPageState[index];
+        });
+    }
 
     paragraphs.forEach(paragraph => {
         const clone = paragraph.cloneNode(true);
@@ -146,11 +161,14 @@ fetch("https://wiki.skyler.cc/sentiment", {
 })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings;
+        let findings = data.findings; // data.sentiment
         let searchTexts = findings.map(finding => finding.text);
         let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
         let types = findings.map(finding => finding.type);
-        highlight(searchTexts, tooltips, types);
+        setSentiment = () => {
+            highlight(searchTexts, tooltips, types);
+        }
+        setSentiment();
         textBox.innerText = "Got sentiment. Loading bias...";
 
         // Chain the second fetch call
@@ -164,12 +182,13 @@ fetch("https://wiki.skyler.cc/sentiment", {
     })
     .then(response => response.json())
     .then((data) => {
-        let findings = data.findings;
+        let findings = data.findings; // data.bias
         let searchTexts = findings.map(finding => finding.text);
         let tooltips = findings.map(finding => `We are ${Math.floor(finding.confidence * 100)}% confident that this text is ${finding.type}`);
         let types = findings.map(finding => finding.type);
-
-        highlight(searchTexts, tooltips, types);
+        setBias = () => {
+            highlight(searchTexts, tooltips, types);
+        }
         textBox.innerText = "";
         textBox.appendChild(toggleSwitch);
     })
